@@ -4,13 +4,18 @@ using Focus.Application.Services;
 using Focus.Domain.Interfaces;
 using Focus.Infrastructure.Auth;
 using Focus.Infrastructure.ML;
-using Focus.Infrastructure.Nlp;
 using Focus.Infrastructure.Repositories;
 using Focus.Infrastructure.Schedule;
+using Focus.Infrastructure.Notifications;
+using Focus.Infrastructure.Telemetry;
+using Focus.Api.Background;
+using Focus.Api.Telemetry;
+using Focus.Domain.Entities;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.OpenApi;
 using Microsoft.EntityFrameworkCore;
 using Focus.Database;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -20,9 +25,13 @@ builder.Services.AddFocusDatabase(builder.Configuration.GetConnectionString("Def
 builder.Services.AddScoped<ITaskRepository, EfTaskRepository>();
 builder.Services.AddScoped<IUserRepository, EfUserRepository>();
 builder.Services.AddScoped<IDailyNoteRepository, EfDailyNoteRepository>();
-builder.Services.AddScoped<IProductivityPredictor, StubProductivityPredictor>();
+builder.Services.AddScoped<INotificationPreferenceRepository, EfNotificationPreferenceRepository>();
+builder.Services.AddScoped<ITaskNotificationRepository, EfTaskNotificationRepository>();
+builder.Services.AddScoped<IPsychologicalQuestionnaireRepository, EfPsychologicalQuestionnaireRepository>();
+builder.Services.AddScoped<IScheduledSlotRepository, EfScheduledSlotRepository>();
+builder.Services.AddScoped<IUserFeedbackRepository, EfUserFeedbackRepository>();
 builder.Services.AddScoped<IScheduleOptimizer, GreedyScheduleOptimizer>();
-builder.Services.AddScoped<INlpAnalyzer, StubNlpAnalyzer>();
+builder.Services.AddFocusMlClients(builder.Configuration);
 
 builder.Services.AddScoped<IPasswordHasher, BcryptPasswordHasher>();
 builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
@@ -31,6 +40,31 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ITaskService, TaskService>();
 builder.Services.AddScoped<IScheduleService, ScheduleService>();
 builder.Services.AddScoped<IDailyNoteService, DailyNoteService>();
+builder.Services.AddScoped<INotificationPreferenceService, NotificationPreferenceService>();
+builder.Services.AddScoped<IPsychologicalQuestionnaireService, PsychologicalQuestionnaireService>();
+builder.Services.AddScoped<IDeveloperAnalyticsService, ClickHouseDeveloperAnalyticsService>();
+builder.Services.AddScoped<IFeedbackService, FeedbackService>();
+builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
+
+builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection(SmtpOptions.Section));
+builder.Services.Configure<ClickHouseOptions>(builder.Configuration.GetSection(ClickHouseOptions.Section));
+
+builder.Services.AddHttpClient("ClickHouse", (sp, client) =>
+{
+    var cfg = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ClickHouseOptions>>().Value;
+    client.BaseAddress = new Uri(cfg.BaseUrl);
+    if (!string.IsNullOrWhiteSpace(cfg.User))
+    {
+        var raw = $"{cfg.User}:{cfg.Password}";
+        var token = Convert.ToBase64String(Encoding.UTF8.GetBytes(raw));
+        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", token);
+    }
+});
+builder.Services.AddSingleton<IClickHouseTelemetrySink, ClickHouseTelemetrySink>();
+builder.Services.AddSingleton<ITelemetryWriter>(sp => (ClickHouseTelemetrySink)sp.GetRequiredService<IClickHouseTelemetrySink>());
+builder.Services.AddSingleton<ILoggerProvider, ClickHouseLoggerProvider>();
+builder.Services.AddHostedService(sp => (ClickHouseTelemetrySink)sp.GetRequiredService<IClickHouseTelemetrySink>());
+builder.Services.AddHostedService<TaskReminderWorker>();
 
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection(JwtSettings.Section));
 
@@ -46,6 +80,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuerSigningKey = true,
             ValidIssuer = jwtSettings.Issuer,
             ValidAudience = jwtSettings.Audience,
+            RoleClaimType = System.Security.Claims.ClaimTypes.Role,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.SecretKey))
         };
     });
@@ -89,12 +124,14 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<FocusDbContext>();
     db.Database.Migrate();
+    SeedDefaultQuestionnaires(db);
 }
 
 app.UseSwagger();
 app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Focus API v1"));
 
 app.UseHttpsRedirection();
+app.UseMiddleware<RequestMetricsMiddleware>();
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
@@ -103,3 +140,59 @@ app.MapControllers();
 app.MapGet("/", () => Results.Redirect("/swagger"));
 
 app.Run();
+
+static void SeedDefaultQuestionnaires(FocusDbContext db)
+{
+    var questionnaireId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+    if (!db.PsychologicalQuestionnaires.Any(x => x.Id == questionnaireId))
+    {
+        db.PsychologicalQuestionnaires.Add(new PsychologicalQuestionnaire
+        {
+            Id = questionnaireId,
+            Code = "WELLBEING_WEEKLY",
+            Name = "Еженедельный опрос самочувствия",
+            Description = "Короткий опрос для анализа динамики состояния пользователя.",
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        });
+    }
+
+    var defaultQuestions = new[]
+    {
+        new PsychologicalQuestionnaireQuestion
+        {
+            Id = Guid.Parse("11111111-1111-1111-1111-111111111112"),
+            QuestionnaireId = questionnaireId,
+            Text = "Насколько вы были энергичны на этой неделе?",
+            SortOrder = 1,
+            MinValue = 1,
+            MaxValue = 5
+        },
+        new PsychologicalQuestionnaireQuestion
+        {
+            Id = Guid.Parse("11111111-1111-1111-1111-111111111113"),
+            QuestionnaireId = questionnaireId,
+            Text = "Насколько часто чувствовали стресс?",
+            SortOrder = 2,
+            MinValue = 1,
+            MaxValue = 5
+        },
+        new PsychologicalQuestionnaireQuestion
+        {
+            Id = Guid.Parse("11111111-1111-1111-1111-111111111114"),
+            QuestionnaireId = questionnaireId,
+            Text = "Насколько легко удавалось концентрироваться?",
+            SortOrder = 3,
+            MinValue = 1,
+            MaxValue = 5
+        }
+    };
+
+    foreach (var q in defaultQuestions)
+    {
+        if (!db.PsychologicalQuestionnaireQuestions.Any(x => x.Id == q.Id))
+            db.PsychologicalQuestionnaireQuestions.Add(q);
+    }
+
+    db.SaveChanges();
+}

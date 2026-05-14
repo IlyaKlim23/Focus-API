@@ -17,6 +17,8 @@ public interface ITaskRepository
     /// </summary>
     Task<IReadOnlyList<TaskItem>> GetByUserAsync(Guid userId, DateTime? from = null, DateTime? to = null, CancellationToken ct = default);
 
+    Task<IReadOnlyList<TaskItem>> GetPendingDueBetweenAsync(Guid userId, DateTime dueFromUtc, DateTime dueToUtc, CancellationToken ct = default);
+
     /// <summary>
     /// Добавляет новую задачу
     /// </summary>

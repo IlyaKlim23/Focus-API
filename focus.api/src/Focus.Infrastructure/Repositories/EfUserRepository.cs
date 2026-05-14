@@ -19,4 +19,10 @@ public class EfUserRepository(FocusDbContext db) : IUserRepository
         await db.SaveChangesAsync(ct);
         return user;
     }
+
+    public async Task UpdateAsync(User user, CancellationToken ct = default)
+    {
+        db.Users.Update(user);
+        await db.SaveChangesAsync(ct);
+    }
 }

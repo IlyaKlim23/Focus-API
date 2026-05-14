@@ -22,4 +22,9 @@ public interface IAuthService
     /// <param name="ct">Токен отмены</param>
     /// <returns>Результат авторизации с токеном или null при неверных данных</returns>
     Task<AuthResponse?> LoginAsync(LoginRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Сбрасывает пароль пользователя по email
+    /// </summary>
+    Task<bool> ResetPasswordAsync(ResetPasswordRequest request, CancellationToken ct = default);
 }

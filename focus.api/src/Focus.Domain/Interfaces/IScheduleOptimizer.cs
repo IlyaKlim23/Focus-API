@@ -20,7 +20,8 @@ public interface IScheduleOptimizer
         IReadOnlyList<TaskInput> tasks,
         IReadOnlyDictionary<DateTime, double> productivityScores,
         DateTime dayStart,
-        DateTime dayEnd);
+        DateTime dayEnd,
+        IReadOnlyList<DailyUnavailableWindow>? unavailableWindows = null);
 }
 
 /// <summary>
@@ -31,3 +32,10 @@ public interface IScheduleOptimizer
 /// <param name="EstimatedMinutes">Оценка длительности в минутах</param>
 /// <param name="DueDate">Крайний срок</param>
 public record TaskInput(Guid Id, int Priority, int EstimatedMinutes, DateTime? DueDate);
+
+/// <summary>
+/// Ежедневное окно недоступности для планирования
+/// </summary>
+/// <param name="FromMinute">Начало в минутах от 00:00</param>
+/// <param name="ToMinute">Конец в минутах от 00:00</param>
+public record DailyUnavailableWindow(int FromMinute, int ToMinute);

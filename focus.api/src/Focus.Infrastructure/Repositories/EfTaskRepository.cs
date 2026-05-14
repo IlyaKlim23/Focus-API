@@ -2,6 +2,7 @@ using Focus.Database;
 using Focus.Domain.Entities;
 using Focus.Domain.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Focus.Domain.ValueObjects;
 
 namespace Focus.Infrastructure.Repositories;
 
@@ -17,6 +18,21 @@ public class EfTaskRepository(FocusDbContext db) : ITaskRepository
         if (to.HasValue) query = query.Where(x => x.CreatedAt <= to.Value);
         return await query.OrderByDescending(x => x.CreatedAt).ToListAsync(ct);
     }
+
+    public async Task<IReadOnlyList<TaskItem>> GetPendingDueBetweenAsync(
+        Guid userId,
+        DateTime dueFromUtc,
+        DateTime dueToUtc,
+        CancellationToken ct = default) =>
+        await db.Tasks
+            .Where(x => x.UserId == userId &&
+                        x.DueDate != null &&
+                        x.DueDate >= dueFromUtc &&
+                        x.DueDate <= dueToUtc &&
+                        x.Status != TaskItemStatus.Done &&
+                        x.Status != TaskItemStatus.Cancelled)
+            .OrderBy(x => x.DueDate)
+            .ToListAsync(ct);
 
     public async Task<TaskItem> AddAsync(TaskItem task, CancellationToken ct = default)
     {

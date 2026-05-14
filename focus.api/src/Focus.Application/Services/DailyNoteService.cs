@@ -16,7 +16,11 @@ public class DailyNoteService(IDailyNoteRepository repository, INlpAnalyzer nlpA
     public async Task<DailyNoteDto> CreateOrUpdateAsync(Guid userId, DateOnly date, CreateDailyNoteRequest request, CancellationToken ct = default)
     {
         var existing = await repository.GetByUserAndDateAsync(userId, date, ct);
-        var analysis = await nlpAnalyzer.AnalyzeAsync(request.Content, ct);
+        var analysis = await nlpAnalyzer.AnalyzeAsync(
+            request.Content,
+            request.MoodScore,
+            request.EnergyLevel,
+            ct);
         var factorsJson = analysis.ExtractedFactors.Count > 0
             ? string.Join(",", analysis.ExtractedFactors)
             : null;

@@ -41,4 +41,17 @@ public class AuthController(IAuthService authService) : ControllerBase
 
         return Ok(result);
     }
+
+    /// <summary>
+    /// Сброс пароля по email
+    /// </summary>
+    [HttpPost("reset-password")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request, CancellationToken ct)
+    {
+        var ok = await authService.ResetPasswordAsync(request, ct);
+        return ok ? NoContent() : NotFound("Пользователь не найден");
+    }
 }

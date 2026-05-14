@@ -16,11 +16,19 @@ public record RegisterRequest(string Email, string Password, string? DisplayName
 public record LoginRequest(string Email, string Password);
 
 /// <summary>
+/// Запрос на сброс пароля
+/// </summary>
+/// <param name="Email">Email пользователя</param>
+/// <param name="NewPassword">Новый пароль</param>
+public record ResetPasswordRequest(string Email, string NewPassword);
+
+/// <summary>
 /// Ответ с данными авторизации
 /// </summary>
 /// <param name="AccessToken">JWT access-токен</param>
 /// <param name="UserId">Идентификатор пользователя</param>
 /// <param name="Email">Email</param>
 /// <param name="DisplayName">Отображаемое имя</param>
+/// <param name="Role">Роль пользователя</param>
 /// <param name="ExpiresAt">Время истечения токена</param>
-public record AuthResponse(string AccessToken, Guid UserId, string Email, string? DisplayName, DateTime ExpiresAt);
+public record AuthResponse(string AccessToken, Guid UserId, string Email, string? DisplayName, string Role, DateTime ExpiresAt);

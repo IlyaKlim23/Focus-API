@@ -21,6 +21,11 @@ public class User
     public string? DisplayName { get; set; }
 
     /// <summary>
+    /// Роль пользователя в системе
+    /// </summary>
+    public string Role { get; set; } = "User";
+
+    /// <summary>
     /// Хэш пароля (BCrypt)
     /// </summary>
     public string PasswordHash { get; set; } = string.Empty;

@@ -1,5 +1,6 @@
 using Focus.Domain.Entities;
 using Focus.Domain.Interfaces;
+using Focus.Domain.ValueObjects;
 
 namespace Focus.Infrastructure.Repositories;
 
@@ -28,6 +29,27 @@ public class InMemoryTaskRepository : ITaskRepository
             if (from.HasValue) query = query.Where(x => x.CreatedAt >= from.Value);
             if (to.HasValue) query = query.Where(x => x.CreatedAt <= to.Value);
             return Task.FromResult<IReadOnlyList<TaskItem>>(query.ToList());
+        }
+    }
+
+    public Task<IReadOnlyList<TaskItem>> GetPendingDueBetweenAsync(
+        Guid userId,
+        DateTime dueFromUtc,
+        DateTime dueToUtc,
+        CancellationToken ct = default)
+    {
+        lock (_lock)
+        {
+            var items = _tasks
+                .Where(x => x.UserId == userId &&
+                            x.DueDate != null &&
+                            x.DueDate >= dueFromUtc &&
+                            x.DueDate <= dueToUtc &&
+                            x.Status != TaskItemStatus.Done &&
+                            x.Status != TaskItemStatus.Cancelled)
+                .OrderBy(x => x.DueDate)
+                .ToList();
+            return Task.FromResult<IReadOnlyList<TaskItem>>(items);
         }
     }
 

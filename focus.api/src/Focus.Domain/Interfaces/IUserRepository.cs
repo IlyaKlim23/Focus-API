@@ -21,4 +21,9 @@ public interface IUserRepository
     /// Добавляет нового пользователя
     /// </summary>
     Task<User> AddAsync(User user, CancellationToken ct = default);
+
+    /// <summary>
+    /// Обновляет пользователя
+    /// </summary>
+    Task UpdateAsync(User user, CancellationToken ct = default);
 }

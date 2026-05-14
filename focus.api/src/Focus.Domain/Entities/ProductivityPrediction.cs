@@ -29,4 +29,14 @@ public class ProductivityPrediction
     /// Объясняющие факторы (JSON)
     /// </summary>
     public string? Factors { get; set; }
+
+    /// <summary>
+    /// Дата и время создания предсказания
+    /// </summary>
+    public DateTime CreatedAt { get; set; }
+
+    /// <summary>
+    /// Навигация на пользователя
+    /// </summary>
+    public User User { get; set; } = null!;
 }

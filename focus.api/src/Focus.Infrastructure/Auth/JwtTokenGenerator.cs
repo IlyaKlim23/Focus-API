@@ -30,7 +30,9 @@ public class JwtTokenGenerator : IJwtTokenGenerator
         {
             new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new Claim(JwtRegisteredClaimNames.Email, user.Email),
-            new Claim("userId", user.Id.ToString())
+            new Claim("userId", user.Id.ToString()),
+            new Claim(ClaimTypes.Role, user.Role),
+            new Claim("role", user.Role)
         };
 
         var token = new JwtSecurityToken(

@@ -28,4 +28,14 @@ public class InMemoryUserRepository : IUserRepository
             return Task.FromResult(user);
         }
     }
+
+    public Task UpdateAsync(User user, CancellationToken ct = default)
+    {
+        lock (_lock)
+        {
+            var idx = _users.FindIndex(x => x.Id == user.Id);
+            if (idx >= 0) _users[idx] = user;
+            return Task.CompletedTask;
+        }
+    }
 }
